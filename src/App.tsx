@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Wallet, Send, RefreshCw, CreditCard, Building2, Bitcoin, Check } from 'lucide-react';
 import { Button } from './components/Button';
 import { formatCurrency } from './utils';
@@ -50,6 +50,41 @@ function App() {
     email: '',
     mobile: ''
   });
+  // Add ethRate state
+  const [ethRate, setEthRate] = useState<number>(0);
+  const [ethAmount, setEthAmount] = useState<string>('0');
+  const [loadingRate, setLoadingRate] = useState<boolean>(false);
+
+  // Fetch ETH exchange rate on component mount
+  useEffect(() => {
+    fetchEthRate();
+  }, []);
+
+  // Calculate ETH amount when USD amount or ETH rate changes
+  useEffect(() => {
+    if (ethRate > 0 && checkoutDetails.amount > 0) {
+      const calculatedEthAmount = (checkoutDetails.amount / ethRate).toFixed(6);
+      setEthAmount(calculatedEthAmount);
+    } else {
+      setEthAmount('0');
+    }
+  }, [checkoutDetails.amount, ethRate]);
+
+  const fetchEthRate = async () => {
+    setLoadingRate(true);
+    try {
+      // Mock API call - in a real app, fetch from a price API like CoinGecko
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use a sample rate - in production, replace with actual API call
+      const mockRate = 2000 + Math.random() * 200;
+      setEthRate(mockRate);
+    } catch (err) {
+      console.error('Failed to fetch ETH rate:', err);
+      setError('Failed to fetch ETH exchange rate');
+    } finally {
+      setLoadingRate(false);
+    }
+  };
 
   const generateRandomOtp = () => {
     return Math.floor(100000 + Math.random() * 900000).toString(); // Generates a 6-digit random number
@@ -147,11 +182,12 @@ function App() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         
-        const ethAmount = ethers.parseEther((checkoutDetails.amount / 2000).toString());
+        // Use calculated ETH amount from exchange rate
+        const ethAmountToSend = ethers.parseEther(ethAmount);
 
         const tx = await signer.sendTransaction({
           to: merchantEthAddress,
-          value: ethAmount,
+          value: ethAmountToSend,
         });
 
         await tx.wait();
@@ -335,6 +371,52 @@ function App() {
                   />
                 </div>
 
+                {/* ETH Exchange Rate Card */}
+                <div className="p-4 border border-gray-700 rounded-lg bg-gray-800/70">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-300 flex items-center gap-2">
+                      <Bitcoin className="w-5 h-5 text-blue-400" />
+                      ETH Exchange Rate
+                    </h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchEthRate} 
+                      disabled={loadingRate}
+                      className="h-8 px-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1 ${loadingRate ? 'animate-spin' : ''}`} />
+                      {loadingRate ? 'Updating...' : 'Refresh'}
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-3 bg-gray-700/50 rounded-lg">
+                      <div className="text-sm text-gray-400 mb-1">Current Rate</div>
+                      <div className="font-semibold">
+                        {loadingRate ? (
+                          <span className="text-gray-500">Loading...</span>
+                        ) : ethRate > 0 ? (
+                          <span>1 ETH = ${ethRate.toFixed(2)} USD</span>
+                        ) : (
+                          <span className="text-gray-500">Unavailable</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 bg-gray-700/50 rounded-lg">
+                      <div className="text-sm text-gray-400 mb-1">Equivalent in ETH</div>
+                      <div className="font-semibold">
+                        {checkoutDetails.amount > 0 && ethRate > 0 ? (
+                          <span>{ethAmount} ETH</span>
+                        ) : (
+                          <span className="text-gray-500">Enter USD amount</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {error && (
                   <div className="p-4 bg-red-900/50 text-red-300 border border-red-800 rounded-lg">
                     {error}
@@ -380,6 +462,14 @@ function App() {
                       <div>
                         <h3 className="font-medium text-gray-200">{method.name}</h3>
                         <p className="text-sm text-gray-400">{method.description}</p>
+                        {method.id === 'eth' && ethRate > 0 && (
+                          <p className="text-xs text-blue-400 mt-1">
+                            {checkoutDetails.amount > 0 
+                              ? `${checkoutDetails.amount} USD ≈ ${ethAmount} ETH`
+                              : `1 ETH = $${ethRate.toFixed(2)} USD`
+                            }
+                          </p>
+                        )}
                       </div>
                       <div className="ml-auto">
                         <div
@@ -438,7 +528,7 @@ function App() {
               
               <p className="text-gray-400">
                 {selectedPayment === 'eth'
-                  ? 'Your ETH payment has been processed successfully'
+                  ? `Your ETH payment of ${ethAmount} ETH has been processed successfully`
                   : 'Your payment is being processed'}
               </p>
               
@@ -458,6 +548,7 @@ function App() {
                   setSelectedPayment('');
                   setError('');
                   setGeneratedOtps({ email: '', mobile: '' });
+                  setEthAmount('0');
                 }}
               >
                 Make Another Payment
