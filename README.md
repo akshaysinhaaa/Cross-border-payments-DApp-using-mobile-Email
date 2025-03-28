@@ -63,7 +63,8 @@ http://localhost:5173
 
 ## License
 This project is licensed under the MIT License.
-
+---
+contributors: [@akshaysinhaaa](https://github.com/akshaysinhaaa)
 ---
 Made with ❤️ by Yash Aryas
 
